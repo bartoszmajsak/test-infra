@@ -35,7 +35,7 @@ deck:
       - podinfo.json
 plank:
   job_url_prefix_config:
-    '*': "https://prow.maistra.io/view/"
+    '*': "http://status-prow.apps.workspace.maistra.test/view/"
   default_decoration_configs:
     '*':
       timeout: 4h
@@ -47,11 +47,106 @@ plank:
         sidecar: "gcr.io/k8s-prow/sidecar:v20200910-8c70361b39"
       gcs_configuration:
         path_strategy: explicit
-        bucket: "maistra-prow-testing"
+        bucket: "ike-prow-logs"
       gcs_credentials_secret: "gcs-credentials"
+presubmits:
+  maistra/istio-workspace:
+    - name: e2e-tests-openshift
+      decorate: true
+      always_run: false
+      skip_report: false
+      trigger: "(?m)^/test openshift"
+      rerun_command: "/test openshift"
+      max_concurrency: 3
+      spec:
+        volumes:
+          - name: status
+            emptyDir: {}
+          - name: varlibc
+        containers:
+          - name: "image-builder"
+            image: "quay.io/maistra/istio-workspace-image-builder:latest"
+            imagePullPolicy: Always
+            securityContext:
+              privileged: true
+            command:
+              - build-images.sh
+            volumeMounts:
+              - name: status
+                mountPath: "/status"
+              - name: varlibc
+                mountPath: /var/lib/containers
+            env:
+              - name: QUAY_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: ike-image-deployer
+                    key: QUAY_USER
+              - name: QUAY_PWD
+                valueFrom:
+                  secretKeyRef:
+                    name: ike-image-deployer
+                    key: QUAY_PWD
+            resources:
+              limits:
+                memory: 1Gi
+                cpu: "1"
+              requests:
+                cpu: "0.5"
+                memory: 1Gi
+          - name: "openshift-e2e-tests"
+            image: "quay.io/maistra/istio-workspace-tester:latest"
+            imagePullPolicy: Always
+            command:
+              - run-tests.sh
+            volumeMounts:
+              - name: status
+                mountPath: /status
+              - name: varlibc
+                mountPath: /var/lib/containers
+            env:
+              - name: IKE_CLUSTER_ADDRESS
+                value: https://api.workspace.maistra.test:6443
+              - name: IKE_CLUSTER_HOST
+                value: apps.workspace.maistra.test
+              - name: IKE_CLUSTER_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: ike-cluster-credentials
+                    key: IKE_CLUSTER_USER
+              - name: IKE_CLUSTER_PWD
+                valueFrom:
+                  secretKeyRef:
+                    name: ike-cluster-credentials
+                    key: IKE_CLUSTER_PWD
+              - name: IKE_E2E_MANAGE_CLUSTER
+                value: "false"
+              - name: IKE_CLUSTER_VERSION
+                value: "4"
+              - name: ISTIO_NS
+                value: istio-system
+              - name: IKE_INTERNAL_DOCKER_REGISTRY
+                value: quay.io
+              - name: IKE_EXTERNAL_DOCKER_REGISTRY
+                value: quay.io
+              - name: IKE_DOCKER_REPOSITORY
+                value: maistra
+              - name: PRE_BUILT_IMAGES
+                value: "true"
+            resources:
+              limits:
+                memory: 2Gi
+                cpu: "1"
+              requests:
+                cpu: "0.5"
+                memory: 1Gi
 prowjob_namespace: prow
 pod_namespace: prow-test-pods
 sinker:
   resync_period: 1h
   max_prowjob_age: 168h
   max_pod_age: 6h
+github_reporter:
+  job_types_to_report:
+  - presubmit
+  - postsubmit

@@ -2,8 +2,13 @@
 
 set -ex
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
 NAMESPACE=${NAMESPACE:-default}
 WORKER_NS=${WORKER_NS:-test-pods}
+
+# create prow namespace
+kubectl create namespace "${NAMESPACE}" || echo Skipping
 
 # create test-pods namespace
 kubectl create namespace "${WORKER_NS}" || echo Skipping
@@ -19,28 +24,18 @@ kubectl -n "${NAMESPACE}" create secret generic oauth-token --from-file=oauth=se
 
 kubectl -n "${WORKER_NS}" create secret generic github-token --from-file=github-token=secrets/github-token || echo Skipping
 kubectl -n "${WORKER_NS}" create secret generic gcs-credentials --from-file=service-account.json=secrets/gcs-credentials.json || echo Skipping
-kubectl -n "${WORKER_NS}" create secret generic quay-pusher-dockercfg --from-file=config.json=secrets/maistra-dev-prow-auth.json || echo Skipping
-kubectl -n "${WORKER_NS}" create secret generic copr --from-file=copr=secrets/copr-token-bot || echo Skipping
 
-# create service account including secret holding kubeconfig (for auto-updating prow config on merged PRs)
-./setup-prow-deployer.sh
+# creates service account including secret holding kubeconfig (for auto-updating prow config on merged PRs)
+./"${DIR}"/setup-prow-deployer.sh
 
-# install nginx-ingress
-# kubectl create namespace ingress || echo Skipping
-# helm template --name ingress --namespace ingress \
-#   --set rbac.create=true \
-#   --set controller.kind=DaemonSet \
-#   --set controller.service.type=ClusterIP,controller.hostNetwork=true \
-#   --set controller.resources.requests.cpu=100m, \
-#   --set controller.resources.requests.memory=64Mi \
-#   --set controller.resources.limits.cpu=500m \
-#   --set controller.resources.limits.memory=512Mi \
-#   nginx-ingress | kubectl apply -n ingress -f -
+# creates secret with cluster credentials for e2e tests
+kubectl create secret generic ike-cluster-credentials --from-literal=IKE_CLUSTER_USER="${IKE_CLUSTER_USER:-ike}" --from-literal=IKE_CLUSTER_PWD="${IKE_CLUSTER_PWD:-letmein}" -n "${WORKER_NS}"
 
-# install cert-manager
-# kubectl create namespace cert-manager || echo Skipping
-# kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.13.0/cert-manager.yaml
+# enables privileged container builds
+oc adm policy add-scc-to-user privileged -z default -n "${WORKER_NS}" || echo "Not Openshift. Skipping"
+
 sleep 10
 
 # deploy prow
-./update.sh
+./"${DIR}"/update.sh
+

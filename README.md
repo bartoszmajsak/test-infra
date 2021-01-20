@@ -87,15 +87,15 @@ You should have existing secrets for an already running cluster. You'll only nee
 
 #### GCS Credentials
 
-1. Create a GCS bucket, make it publically readable
+1. Create a GCS bucket, make it publicly readable
 1. Create a Service Account, store API credentials in `prow/secrets/gcs-credentials.json`
 1. Give the Service Account write permissions to the bucket you created
 
 #### Cluster Credentials
 To run the e2e tests you'll need some cluster credentials set.
 
-1. Store it in `prow/secrets/ike-cluster-credentials`
-1. `oc create secret generic ike-cluster-credentials --from-literal=IKE_CLUSTER_USER=xxxx --from-literal=IKE_CLUSTER_PWD=xxxxxx`
+1. Store it in env variables
+1. `kubectl create secret generic ike-cluster-credentials --from-literal=IKE_CLUSTER_USER="${IKE_CLUSTER_USER}" --from-literal=IKE_CLUSTER_PWD="${IKE_CLUSTER_PWD}" -n "${WORKER_NS}"`
 
 ### Deploying Prow from Scratch
 
