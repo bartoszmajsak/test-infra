@@ -13,7 +13,7 @@ echo "#======================================
 # To update:
 #    Modify files in the config directory
 #    Run gen-config.sh to regenerate.
-#======================================" > config.gen.yaml
+#======================================" > "${DIR}"/config.gen.yaml
 
 for file in "${DIR}"/config/*; do
   # shellcheck disable=SC2016 ## in case of sed expression first '' is not an actual variable to be expanded
